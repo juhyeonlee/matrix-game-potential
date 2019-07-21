@@ -134,6 +134,7 @@ class PotentialAgent():
                 target_max_qvals = torch.gather(target_mac_out, 2, cur_max_actions).squeeze(2)
 
                 diff_rewards = chosen_g_action_qvals - default_g_action_qvals
+                print('chosen', chosen_g_action_qvals[0], 'default', default_g_action_qvals[0])
                 print('diff reward', diff_rewards[0])
 
                 # Calculate 1-step Q-Learning targets
@@ -141,15 +142,16 @@ class PotentialAgent():
 
                 # Td-error
                 td_error = (chosen_action_qvals - targets.detach())
+                print('chosen local', chosen_action_qvals[0], batch_actions[0])
 
                 # Normal L2 loss, take mean over actual data
-                loss = (td_error ** 2).sum()
+                loss = (td_error ** 2).mean()
                 print('loss', loss.item())
 
                 # Optimise
                 self.localQ_optimizer.zero_grad()
                 loss.backward()
-                grad_norm = torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip)
+                grad_norm = torch.nn.utils.clip_grad_norm_(self.localQ_params, self.grad_norm_clip)
                 self.localQ_optimizer.step()
 
             if (episode_num - self.last_target_update_episode) / self.target_update_interval >= 1.0:
