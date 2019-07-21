@@ -47,8 +47,11 @@ class PotentialAgent():
         self.epsilon = max(self.epsilon - self.epsilon_dec, self.epsilon_min)
 
         h = self.mac.init_hidden().unsqueeze(0).expand(1, self.n_agents, -1)
-        obs_var = torch.FloatTensor(obs).unsqueeze(0)
-        q_out, h = self.mac(obs_var, h, 1)
+        action_dummy = np.zeros(self.n_agents).astype(np.int)
+        batch = [(state, action_dummy)]
+        batch = np.array(batch)
+        # obs_var = torch.FloatTensor(obs).unsqueeze(0)
+        q_out, h = self.mac(batch, h, 1, True)
         print('agent1', q_out[0].tolist(), 'agent2', q_out[1].tolist())
         max_q_out = torch.argmax(q_out, dim=-1)
         # act_n.append(torch.argmax(q_out).item())
