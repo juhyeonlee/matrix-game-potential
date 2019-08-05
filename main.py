@@ -3,6 +3,9 @@ import torch
 from env import MultiAgentSimpleEnv2
 from agent import PotentialAgent
 
+torch.manual_seed(123)
+np.random.seed(123)
+
 
 env = MultiAgentSimpleEnv2()
 

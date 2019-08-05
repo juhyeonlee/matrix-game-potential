@@ -31,9 +31,7 @@ class RNNAgent(nn.Module):
         # max_t = batch.max_seq_length if t is None else 1
         # ts = slice(None) if t is None else slice(t, t+1)
         inputs = []
-        # if bs == 1:
-        #     batch_state = batch
-        # else:
+
         batch_state = torch.from_numpy(np.array(list(batch[:, 0])))
         batch_action = torch.from_numpy(np.array(list(batch[:, 1])))
 

@@ -45,6 +45,7 @@ class PotentialAgent():
     def get_action(self, state, step, obs, train=True):
         act_n = []
         self.epsilon = max(self.epsilon - self.epsilon_dec, self.epsilon_min)
+        print(self.epsilon)
 
         h = self.mac.init_hidden().unsqueeze(0).expand(1, self.n_agents, -1)
         action_dummy = np.zeros(self.n_agents).astype(np.int)
@@ -70,7 +71,10 @@ class PotentialAgent():
 
     def train_agents(self, state, action, reward, state_n, done, episode_num):
 
-        self.replay_memory.add_to_memory((state, action, reward, state_n, done))
+        if np.random.rand() < self.epsilon:
+            self.replay_memory.add_to_memory((state, action, reward, state_n, done))
+        else:
+            self.replay_memory.add_to_memory((state, [0, 0], [8.0], state_n, done))
 
         if episode_num > self.batch_size:
             batch = self.replay_memory.sample_from_memory()
@@ -108,7 +112,7 @@ class PotentialAgent():
             masked_td_error_g = td_error_g
 
             # Normal L2 loss, take mean over actual data
-            loss_g = (masked_td_error_g ** 2).sum()
+            loss_g = (masked_td_error_g ** 2).mean()
             self.globalQ_optimizer.zero_grad()
             loss_g.backward()
             grad_norm_g = torch.nn.utils.clip_grad_norm_(self.globalQ_params, self.grad_norm_clip)
@@ -124,6 +128,8 @@ class PotentialAgent():
 
                 # Pick the Q-Values for the actions taken by each agent
                 chosen_action_qvals = torch.gather(mac_out, dim=2, index=batch_actions.unsqueeze(2)).squeeze(2)  # Remove the last dim
+                default_actions = torch.ones(batch_actions.size(), dtype=torch.long) * 2
+                default_action_qvals = torch.gather(mac_out, dim=2, index=default_actions.unsqueeze(2)).squeeze(2)
 
                 h = self.target_mac.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
                 target_mac_out, h = self.target_mac.forward(batch, h, self.batch_size)
@@ -142,6 +148,14 @@ class PotentialAgent():
 
                 # Calculate 1-step Q-Learning targets
                 targets = diff_rewards + self.gamma * (1 - batch_terminated.unsqueeze(1)) * target_max_qvals
+
+                # # for debug value
+                # kkkk = chosen_action_qvals - default_action_qvals
+                # idx_pos = torch.sign(kkkk) > 0
+                # idx_neg = torch.sign(diff_rewards[idx_pos]) < 0
+                # if len(diff_rewards[idx_pos][idx_neg]) > 0:
+                #     print('!!!!!!!!!!', kkkk[idx_pos][idx_neg])
+                #     print('??????????', diff_rewards[idx_pos][idx_neg])
 
                 # Td-error
                 td_error = (chosen_action_qvals - targets.detach())
@@ -166,39 +180,3 @@ class PotentialAgent():
         self.target_mac.load_state_dict(self.mac.state_dict())
         self.target_globalQ.load_state_dict(self.globalQ.state_dict())
         print("Updated target network")
-
-        # if t_env - self.log_stats_t >= self.args.learner_log_interval:
-        #     self.logger.log_stat('global_loss', loss_g.item(), t_env)
-        #     self.logger.log_stat('global_grad_norm', grad_norm_g, t_env)
-        #     mask_elems = mask.sum().item()
-        #     self.logger.log_stat('global_td_error_abs', (masked_td_error_g.abs().sum().item() / mask_elems), t_env)
-        #     self.logger.log_stat('global_q_taken_mean',
-        #                          (chosen_g_action_qvals * mask).sum().item() / (mask_elems * self.args.n_agents), t_env)
-        #     self.logger.log_stat('global_target_mean',
-        #                          (targets_g * mask).sum().item() / (mask_elems * self.args.n_agents), t_env)
-        #     self.logger.log_stat('default_g_action_qvals',
-        #                          (default_g_action_qvals * mask).sum().item() / (mask_elems * self.args.n_agents),
-        #                          t_env)
-        #     self.logger.log_stat('diff_rewards', (diff_rewards * mask).sum().item() / (mask_elems * self.args.n_agents),
-        #                          t_env)
-        #     self.logger.log_stat("loss", loss.item(), t_env)
-        #     self.logger.log_stat("grad_norm", grad_norm, t_env)
-        #     self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item() / mask_elems), t_env)
-        #     self.logger.log_stat("q_taken_mean",
-        #                          (chosen_action_qvals * mask).sum().item() / (mask_elems * self.args.n_agents), t_env)
-        #     self.logger.log_stat("target_mean", (targets * mask).sum().item() / (mask_elems * self.args.n_agents),
-        #                          t_env)
-        #     self.log_stats_t = t_env
-
-
-
-        # h = self.globalQ.init_hidden()
-        # global_q = self.globalQ(state, h)
-        # h_n = self.target_globalQ.init_hidden()
-        # target_next_globa_q = self.target_globalQ(state_n, h_n)
-        # print(global_q, target_next_globa_q)
-
-
-
-
-#TODO: global network q 와 각 agent 의 q 비교 해서 같은 값이 max가 되는지..(이게 안되면 간단한 문제도 못푼다고 가정할 수 있지 않을까?)
