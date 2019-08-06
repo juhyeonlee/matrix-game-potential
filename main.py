@@ -10,7 +10,7 @@ np.random.seed(123)
 env = MultiAgentSimpleEnv2()
 
 args = {}
-args['training_step'] = 10000
+args['training_step'] = 5000
 args['max_step'] = 200
 args['pre_train_step'] = 10
 args['n_agents'] = 2

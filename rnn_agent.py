@@ -38,7 +38,7 @@ class RNNAgent(nn.Module):
         # observation
         inputs.append(batch_state.unsqueeze(1).repeat(1, self.n_agents, 1).type(torch.float32))
 
-        # actions (masked out by agent)
+        # # actions (masked out by agent)
         # batch_action_onehot = torch.from_numpy(np.eye(self.n_actions)[batch_action])
         # if select:
         #     batch_action_onehot = torch.zeros_like(batch_action_onehot)

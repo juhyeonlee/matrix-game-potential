@@ -55,7 +55,6 @@ class PotentialAgent():
         q_out, h = self.mac(batch, h, 1, True)
         print('agent1', q_out[0].tolist(), 'agent2', q_out[1].tolist())
         max_q_out = torch.argmax(q_out, dim=-1)
-        # act_n.append(torch.argmax(q_out).item())
 
         # Action of predator
         for i in range(self.n_agents):
@@ -71,10 +70,10 @@ class PotentialAgent():
 
     def train_agents(self, state, action, reward, state_n, done, episode_num):
 
-        if np.random.rand() < self.epsilon:
-            self.replay_memory.add_to_memory((state, action, reward, state_n, done))
-        else:
-            self.replay_memory.add_to_memory((state, [0, 0], [8.0], state_n, done))
+        # if np.random.rand() < self.epsilon:
+        self.replay_memory.add_to_memory((state, action, reward, state_n, done))
+        # else:
+        #     self.replay_memory.add_to_memory((state, [0, 0], [8.0], state_n, done))
 
         if episode_num > self.batch_size:
             batch = self.replay_memory.sample_from_memory()
@@ -150,19 +149,24 @@ class PotentialAgent():
                 targets = diff_rewards + self.gamma * (1 - batch_terminated.unsqueeze(1)) * target_max_qvals
 
                 # # for debug value
-                # kkkk = chosen_action_qvals - default_action_qvals
-                # idx_pos = torch.sign(kkkk) > 0
+                # diff_individual = chosen_action_qvals - default_action_qvals
+                # idx_pos = torch.sign(diff_individual) > 0
                 # idx_neg = torch.sign(diff_rewards[idx_pos]) < 0
+                # batch_agents = torch.zeros(batch_actions.size())
+                # batch_agents[:, 1] = 1
+                # print(diff_individual)
                 # if len(diff_rewards[idx_pos][idx_neg]) > 0:
-                #     print('!!!!!!!!!!', kkkk[idx_pos][idx_neg])
+                #     print('!!!!!!!!!!', diff_individual[idx_pos][idx_neg])
                 #     print('??????????', diff_rewards[idx_pos][idx_neg])
+                #     print('action', batch_actions[idx_pos][idx_neg])
+                #     print('whowho', batch_agents[idx_pos][idx_neg])
 
                 # Td-error
                 td_error = (chosen_action_qvals - targets.detach())
                 print('chosen local', chosen_action_qvals[0], batch_actions[0])
 
                 # Normal L2 loss, take mean over actual data
-                loss = (td_error ** 2).mean()
+                loss = (td_error ** 2).mean() # - 0.5 * torch.tensor(diff_rewards.tolist()) * diff_individual).mean()
                 print('loss', loss.item())
 
                 # Optimise
