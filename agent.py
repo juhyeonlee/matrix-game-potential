@@ -29,18 +29,15 @@ class PotentialAgent():
         self.target_mac = copy.deepcopy(self.mac)
 
         self.globalQ = GlobalQ(args)
-        self.target_globalQ = copy.deepcopy(self.globalQ)
 
         self.replay_memory = ReplayBuffer(args['buffer_size'], self.batch_size)
 
         self.localQ_params = list(self.mac.parameters())
         self.globalQ_params = list(self.globalQ.parameters())
-        self.params = self.localQ_params + self.globalQ_params
+        self.params = self.localQ_params
 
         self.localQ_optimizer = RMSprop(params=self.localQ_params, lr=self.lr, alpha=args['optim_alpha'],
                                         eps=args['optim_eps'])
-        self.globalQ_optimizer = RMSprop(params=self.globalQ_params, lr=self.global_lr, alpha=args['optim_alpha'],
-                                         eps=args['optim_eps'])
 
     def get_action(self, state, step, obs, train=True):
         act_n = []
@@ -86,36 +83,19 @@ class PotentialAgent():
             batch_terminated = torch.from_numpy(np.array(list(batch[:, 4]))).type(torch.float32) # done
 
             # Optimize Global Q
-            hidden_states = self.globalQ.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
-            global_q, hidden_states = self.globalQ(batch, hidden_states)
-            print(global_q[0], batch_actions[0])
-            chosen_g_action_qvals = torch.gather(global_q, dim=2, index=batch_actions.unsqueeze(2)).squeeze(2)  # Remove the last dim
+            chosen_g_action_qvals = self.globalQ(batch_actions)
 
-            default_actions = torch.ones(batch_actions.size(), dtype=torch.long) * 2
-            default_g_action_qvals = torch.gather(global_q, dim=2, index=default_actions.unsqueeze(2)).squeeze(2)
+            default_g_action_qvals = torch.zeros(batch_actions.size())
+            default_a1 = copy.deepcopy(batch_actions)
+            default_a1[:, 1] = 2
+            default_a2 = copy.deepcopy(batch_actions)
+            default_a2[:, 0] = 2
 
-            target_hidden_states = self.globalQ.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
-            target_global_q, target_hidden_states = self.target_globalQ(batch, target_hidden_states)
+            default_g_action_qvals[:, 0] = self.globalQ(default_a1)
+            default_g_action_qvals[:, 1] = self.globalQ(default_a2)
 
-            cur_max_actions = global_q.max(dim=2, keepdim=True)[1]
-            target_g_max_qvals = torch.gather(target_global_q, dim=2, index=cur_max_actions).squeeze(2)
-
-            # Calculate 1-step Q-Learning targets
-            targets_g = batch_rewards + self.gamma * (1 - batch_terminated.unsqueeze(1)) * target_g_max_qvals
-
-            # Td-error
-            td_error_g = (chosen_g_action_qvals - targets_g.detach())
-
-
-            # 0-out the targets that came from padded data
-            masked_td_error_g = td_error_g
-
-            # Normal L2 loss, take mean over actual data
-            loss_g = (masked_td_error_g ** 2).mean()
-            self.globalQ_optimizer.zero_grad()
-            loss_g.backward()
-            grad_norm_g = torch.nn.utils.clip_grad_norm_(self.globalQ_params, self.grad_norm_clip)
-            self.globalQ_optimizer.step()
+            self.globalQ.learn(batch)
+            print(self.globalQ.q_table)
 
             if episode_num > self.target_update_interval:
                 # for each local Q function
@@ -141,7 +121,7 @@ class PotentialAgent():
                 cur_max_actions = mac_out.max(dim=2, keepdim=True)[1]
                 target_max_qvals = torch.gather(target_mac_out, 2, cur_max_actions).squeeze(2)
 
-                diff_rewards = chosen_g_action_qvals - default_g_action_qvals
+                diff_rewards = chosen_g_action_qvals.unsqueeze(1).expand(-1, self.n_agents) - default_g_action_qvals
                 print('chosen', chosen_g_action_qvals[0], 'default', default_g_action_qvals[0])
                 print('diff reward', diff_rewards[0])
 
@@ -182,5 +162,4 @@ class PotentialAgent():
 
     def _update_targets(self):
         self.target_mac.load_state_dict(self.mac.state_dict())
-        self.target_globalQ.load_state_dict(self.globalQ.state_dict())
         print("Updated target network")
