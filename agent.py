@@ -51,16 +51,16 @@ class PotentialAgent():
         # obs_var = torch.FloatTensor(obs).unsqueeze(0)
         q_out, h = self.mac(batch, h, 1, True)
         print('agent1', q_out[0].tolist(), 'agent2', q_out[1].tolist())
-        max_q_out = torch.argmax(q_out, dim=-1)
+        global_a = self.globalQ.select_max_action()
 
-        # Action of predator
+        # Action of global
         for i in range(self.n_agents):
             if train and (
                     step < self.batch_size * self.pre_train_step or np.random.rand() < self.epsilon):  # with prob. epsilon
                 action = np.random.choice(self.action_dim)
                 act_n.append(action)
             else:
-                act_n.append(max_q_out[i])
+                act_n.append(global_a[i])
 
         return np.array(act_n, dtype=np.int32)
 
@@ -87,9 +87,9 @@ class PotentialAgent():
 
             default_g_action_qvals = torch.zeros(batch_actions.size())
             default_a1 = copy.deepcopy(batch_actions)
-            default_a1[:, 1] = 2
+            default_a1[:, 0] = 2
             default_a2 = copy.deepcopy(batch_actions)
-            default_a2[:, 0] = 2
+            default_a2[:, 1] = 2
 
             default_g_action_qvals[:, 0] = self.globalQ(default_a1)
             default_g_action_qvals[:, 1] = self.globalQ(default_a2)

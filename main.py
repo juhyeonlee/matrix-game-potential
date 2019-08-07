@@ -2,9 +2,11 @@ import numpy as np
 import torch
 from env import MultiAgentSimpleEnv2
 from agent import PotentialAgent
+import random
 
 torch.manual_seed(123)
 np.random.seed(123)
+random.seed(123)
 
 
 env = MultiAgentSimpleEnv2()

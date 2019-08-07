@@ -33,6 +33,11 @@ class GlobalQ(nn.Module):
             a = batch_action[idx]
             new_q = batch_reward[idx] #+ self.gamma * max(self.q_table[next_state])
             self.q_table[a[0]][a[1]] += self.global_lr * (new_q - self.q_table[a[0]][a[1]])
+
+    def select_max_action(self):
+        a = np.unravel_index(np.argmax(self.q_table, axis=None), self.q_table.shape)
+
+        return a
     # def init_hidden(self):
     #     return self.fc1.weight.new(1, self.rnn_hidden_dim).zero_()
     #
