@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from env import MultiAgentSimpleEnv2
+from env import MultiAgentSimpleEnv1, MultiAgentSimpleEnv2
 from agent import PotentialAgent
 import random
 
@@ -8,15 +8,15 @@ torch.manual_seed(123)
 np.random.seed(123)
 random.seed(123)
 
-
-env = MultiAgentSimpleEnv2()
+# env = MultiAgentSimpleEnv1() # 1 step game
+env = MultiAgentSimpleEnv2()  # 2 step game
 
 args = {}
 args['training_step'] = 5000
 args['max_step'] = 200
 args['pre_train_step'] = 10
 args['n_agents'] = 2
-args['n_states'] = 2
+args['n_states'] = env.n_states
 args['action_dim'] = env.action_dim
 args['state_dim'] = env.state_dim
 args['discount_factor'] = 0.99
