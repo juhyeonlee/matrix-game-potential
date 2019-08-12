@@ -27,13 +27,13 @@ class RNNAgent(nn.Module):
         q = self.fc2(h)
         return q, h
 
-    def _build_inputs(self, batch, bs, select):
+    def _build_inputs(self, batch_state, bs, select):
         # max_t = batch.max_seq_length if t is None else 1
         # ts = slice(None) if t is None else slice(t, t+1)
         inputs = []
 
-        batch_state = torch.from_numpy(np.array(list(batch[:, 0])))
-        batch_action = torch.from_numpy(np.array(list(batch[:, 1])))
+        # batch_state = torch.from_numpy(np.array(list(batch[:, 0])))
+        # batch_action = torch.from_numpy(np.array(list(batch[:, 1])))
 
         # observation
         inputs.append(batch_state.unsqueeze(1).repeat(1, self.n_agents, 1).type(torch.float32))

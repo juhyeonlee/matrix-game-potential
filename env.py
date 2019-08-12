@@ -11,19 +11,21 @@ class MultiAgentSimpleEnv2(gym.Env):  # Matrix game
         self.payoff2 = np.array([[8., -12., -12.], [-12., 0., 0.], [-12., 0., 0.]])
 
     def reset(self):
-        self.state = [1]
+        state = [1]
+        self.state = state
 
-        return self.state
+        return state
 
     def step(self, action):
         info = {'n': []}
         reward = []
         done = []
         reward.append(self.payoff2[action[0], action[1]])
-        self.state = [3]
+        next_state = [3]
+        self.state = next_state
         done.append(True)
 
-        return self.state, reward, done, info
+        return next_state, reward, done, info
 
     def call_action_dim(self):
         return self.action_dim

@@ -48,10 +48,10 @@ class PotentialAgent():
         action_dummy = np.zeros(self.n_agents).astype(np.int)
         batch = [(state, action_dummy)]
         batch = np.array(batch)
-        # obs_var = torch.FloatTensor(obs).unsqueeze(0)
-        q_out, h = self.mac(batch, h, 1, True)
-        print('agent1', q_out[0].tolist(), 'agent2', q_out[1].tolist())
-        global_a = self.globalQ.select_max_action()
+        state_var = torch.FloatTensor(state).unsqueeze(0)
+        q_out, h = self.mac(state_var, h, 1, True)
+        print('state', state, 'agent1', q_out[0].tolist(), 'agent2', q_out[1].tolist())
+        global_a = self.globalQ.select_max_action(state_var)
 
         # Action of global
         for i in range(self.n_agents):
@@ -83,7 +83,7 @@ class PotentialAgent():
             batch_terminated = torch.from_numpy(np.array(list(batch[:, 4]))).type(torch.float32) # done
 
             # Optimize Global Q
-            chosen_g_action_qvals = self.globalQ(batch_actions)
+            chosen_g_action_qvals = self.globalQ(batch_state, batch_actions)
 
             default_g_action_qvals = torch.zeros(batch_actions.size())
             default_a1 = copy.deepcopy(batch_actions)
@@ -91,19 +91,19 @@ class PotentialAgent():
             default_a2 = copy.deepcopy(batch_actions)
             default_a2[:, 1] = 2
 
-            default_g_action_qvals[:, 0] = self.globalQ(default_a1)
-            default_g_action_qvals[:, 1] = self.globalQ(default_a2)
+            default_g_action_qvals[:, 0] = self.globalQ(batch_state, default_a1)
+            default_g_action_qvals[:, 1] = self.globalQ(batch_state, default_a2)
 
             self.globalQ.learn(batch)
-            print(self.globalQ.q_table)
+            print('global Q', self.globalQ.q_table)
 
             if episode_num > self.target_update_interval:
                 # for each local Q function
                 # Calculate estimated Q-Values
                 h = self.mac.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
-                mac_out, h = self.mac.forward(batch, h, self.batch_size)
+                mac_out, h = self.mac.forward(batch_state, h, self.batch_size)
                 mac_out = mac_out.view(self.batch_size, self.n_agents, -1)
-                print(mac_out[0])
+                # print(mac_out[0])
 
                 # Pick the Q-Values for the actions taken by each agent
                 chosen_action_qvals = torch.gather(mac_out, dim=2, index=batch_actions.unsqueeze(2)).squeeze(2)  # Remove the last dim
@@ -111,7 +111,7 @@ class PotentialAgent():
                 default_action_qvals = torch.gather(mac_out, dim=2, index=default_actions.unsqueeze(2)).squeeze(2)
 
                 h = self.target_mac.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
-                target_mac_out, h = self.target_mac.forward(batch, h, self.batch_size)
+                target_mac_out, h = self.target_mac.forward(batch_state_n, h, self.batch_size)
                 target_mac_out = target_mac_out.view(self.batch_size, self.n_agents, -1)
 
                 # Mask out unavailable actions

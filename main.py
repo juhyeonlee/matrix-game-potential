@@ -16,6 +16,7 @@ args['training_step'] = 5000
 args['max_step'] = 200
 args['pre_train_step'] = 10
 args['n_agents'] = 2
+args['n_states'] = 2
 args['action_dim'] = env.action_dim
 args['state_dim'] = env.state_dim
 args['discount_factor'] = 0.99
@@ -46,7 +47,6 @@ while step < args['training_step']:
         action = agent.get_action(state, step, obs)
         obs_n, reward, done, info = env.step(action)
         state_n = obs_n
-
         done_single = sum(done) > 0
         if ep_step >= args['max_step']:
             done_single = True
@@ -57,9 +57,9 @@ while step < args['training_step']:
         total_reward += np.sum(reward) * (args['discount_factor'] ** (ep_step - 1))
         # if step % 100 ==0:
         #    print(step, agent.globalQ.)
+        print("[train_ep %d]" % (episode), "\tstep:", step, "\tep_step:", ep_step, "\treward", reward,
+              "\taction", action)
         if done_single or ep_step >= args['max_step']:
-            print("[train_ep %d]" % (episode), "\tstep:", step, "\tep_step:", ep_step, "\treward", total_reward,
-                  "\taction", action)
             break
     #
     # if episode % eval_step == 0:
