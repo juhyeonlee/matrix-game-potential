@@ -8,13 +8,13 @@ torch.manual_seed(123)
 np.random.seed(123)
 random.seed(123)
 
-# env = MultiAgentSimpleEnv1() # 1 step game
-env = MultiAgentSimpleEnv2()  # 2 step game
+env = MultiAgentSimpleEnv1() # 1 step game
+# env = MultiAgentSimpleEnv2()  # 2 step game
 
 args = {}
-args['training_step'] = 5000
+args['training_step'] = 50000
 args['max_step'] = 200
-args['pre_train_step'] = 10
+args['pre_train_step'] = 200
 args['n_agents'] = 2
 args['n_states'] = env.n_states
 args['action_dim'] = env.action_dim
@@ -22,7 +22,7 @@ args['state_dim'] = env.state_dim
 args['discount_factor'] = 0.99
 args['buffer_size'] = 50000
 args['batch_size'] = 32
-args['lr'] = 0.0005
+args['lr'] = 0.005
 args['global_lr'] = 0.1
 args['optim_alpha'] = 0.99
 args['optim_eps'] = 0.00001
