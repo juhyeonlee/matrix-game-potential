@@ -4,7 +4,7 @@ import torch
 from torch.optim import RMSprop
 import copy
 from rnn_agent import RNNAgent
-from globalq import GlobalQ
+from globalq import GlobalCritic, GlobalActor
 from replay_buffer import ReplayBuffer
 
 
@@ -28,17 +28,24 @@ class PotentialAgent():
         self.mac = RNNAgent(args)
         self.target_mac = copy.deepcopy(self.mac)
 
-        self.globalQ = GlobalQ(args)
-        self.target_globalQ = copy.deepcopy(self.globalQ)
+        self.globalQ_critic = GlobalCritic(args)
+        self.globalQ_actor = GlobalActor(args)
+        self.target_globalQ_critic = copy.deepcopy(self.globalQ_critic)
 
         self.replay_memory = ReplayBuffer(args['buffer_size'], self.batch_size)
 
         self.localQ_params = list(self.mac.parameters())
-        self.globalQ_params = list(self.globalQ.parameters())
+        self.globalQ_critic_params = list(self.globalQ_critic.parameters())
+        self.globalQ_actor_params = list(self.globalQ_actor.parameters())
+        self.globalQ_params = self.globalQ_critic_params + self.globalQ_actor_params
         self.params = self.localQ_params + self.globalQ_params
 
         self.localQ_optimizer = RMSprop(params=self.localQ_params, lr=self.lr, alpha=args['optim_alpha'],
                                         eps=args['optim_eps'])
+        self.globalQ_critic_optimizer = RMSprop(params=self.globalQ_critic_params, lr=self.global_lr, alpha=args['optim_alpha'],
+                                         eps=args['optim_eps'])
+        self.globalQ_actor_optimizer = RMSprop(params=self.globalQ_actor_params, lr=self.global_lr, alpha=args['optim_alpha'],
+                                         eps=args['optim_eps'])
         self.globalQ_optimizer = RMSprop(params=self.globalQ_params, lr=self.global_lr, alpha=args['optim_alpha'],
                                          eps=args['optim_eps'])
 
@@ -55,10 +62,12 @@ class PotentialAgent():
         q_out, h = self.mac(state_var, h, 1, True)
         print('state', state, 'agent1', q_out[0].tolist(), 'agent2', q_out[1].tolist())
 
-        hidden = self.globalQ.init_hidden().unsqueeze(0).expand(1, self.n_agents, -1)
-        global_a, hidden = self.globalQ(batch, hidden, True)
-        max_action = torch.argmax(global_a, dim=-1)[0].tolist()
+        probs_dist, global_a = self.globalQ_actor(state_var)
+        max_action = probs_dist.sample().long().squeeze().tolist()
+        global_a = global_a.squeeze().tolist()
         print('select', global_a, max_action)
+
+        # return max_action
 
         # Action of global
         for i in range(self.n_agents):
@@ -90,16 +99,15 @@ class PotentialAgent():
             batch_terminated = torch.from_numpy(np.array(list(batch[:, 4]))).type(torch.float32) # done
 
             # Optimize Global Q
-            hidden_states = self.globalQ.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
-            global_q, hidden_states = self.globalQ(batch, hidden_states)
+            global_q = self.globalQ_critic(batch_state, batch_actions)
             print(global_q[0], batch_actions[0])
             chosen_g_action_qvals = torch.gather(global_q, dim=2, index=batch_actions.unsqueeze(2)).squeeze(2)  # Remove the last dim
 
             default_actions = torch.ones(batch_actions.size(), dtype=torch.long) * 2
             default_g_action_qvals = torch.gather(global_q, dim=2, index=default_actions.unsqueeze(2)).squeeze(2)
 
-            target_hidden_states = self.globalQ.init_hidden().unsqueeze(0).expand(bs, self.n_agents, -1)
-            target_global_q, target_hidden_states = self.target_globalQ(batch, target_hidden_states)
+            #TODO: Wrong!!! next action set is needed!!!! batch_actions --> batch_next_actions (but thi time we test on 1 step game)
+            target_global_q = self.target_globalQ_critic(batch_state_n, batch_actions)
 
             cur_max_actions = global_q.max(dim=2, keepdim=True)[1]
             target_g_max_qvals = torch.gather(target_global_q, dim=2, index=cur_max_actions).squeeze(2)
@@ -114,11 +122,33 @@ class PotentialAgent():
             masked_td_error_g = td_error_g
 
             # Normal L2 loss, take mean over actual data
-            loss_g = (masked_td_error_g ** 2).mean()
+            loss_g_critic = (masked_td_error_g ** 2).mean()
+
+            dist, global_a_val = self.globalQ_actor(batch_state)
+            # chosen_global_a_val = torch.gather(global_a_val, dim=2, index=batch_actions.unsqueeze(2)).squeeze(2)
+            loss_g_actor_n = -1 * td_error_g * dist.log_prob(batch_actions)
+            # print('--------->', chosen_g_action_qvals, dist.log_prob(batch_actions))
+            loss_g_actor = loss_g_actor_n.mean()
+            # print(loss_g_actor, loss_g_critic)
+
+            loss_g = loss_g_actor + 0.1 * loss_g_critic
+            print('global loss', loss_g)
+
+
             self.globalQ_optimizer.zero_grad()
             loss_g.backward()
-            grad_norm_g = torch.nn.utils.clip_grad_norm_(self.globalQ_params, self.grad_norm_clip)
+            grad_norm_global = torch.nn.utils.clip_grad_norm_(self.globalQ_params, self.grad_norm_clip)
             self.globalQ_optimizer.step()
+
+            # self.globalQ_actor_optimizer.zero_grad()
+            # self.globalQ_critic_optimizer.zero_grad()
+            # loss_g_actor.backward()
+            # loss_g_critic.backward()
+            # grad_norm_critic = torch.nn.utils.clip_grad_norm_(self.globalQ_critic_params, self.grad_norm_clip)
+            # gard_norm_actor = torch.nn.utils.clip_grad_norm(self.globalQ_actor_params, self.grad_norm_clip)
+            # self.globalQ_actor_optimizer.step()
+            # self.globalQ_critic_optimizer.step()
+
 
             if episode_num > self.target_update_interval:
                 # for each local Q function
@@ -185,5 +215,5 @@ class PotentialAgent():
 
     def _update_targets(self):
         self.target_mac.load_state_dict(self.mac.state_dict())
-        self.target_globalQ.load_state_dict(self.globalQ.state_dict())
+        self.target_globalQ_critic.load_state_dict(self.globalQ_critic.state_dict())
         print("Updated target network")
